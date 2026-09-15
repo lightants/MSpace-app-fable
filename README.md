@@ -63,7 +63,25 @@ uploaded QR images and payment screenshots go in `data/uploads/`.
 Everything customers read is in `src/content.js`: plans and prices, policies, house rules,
 the checkout checklist and the daily / checkout hours. Restart the server after editing.
 
-## Going live
+## Going live (GitHub Pages + Render)
+
+The customer pages are published to **https://lightants.github.io/MSpace-app-fable/** automatically
+on every push to `main` (see `.github/workflows/pages.yml`). The Node server must run elsewhere:
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/lightants/MSpace-app-fable)
+
+1. Click the button, sign in to Render with GitHub, and approve the blueprint (`render.yaml`).
+   Paste your Gmail App Password into `SMTP_PASS` and your Google OAuth client ID into `GOOGLE_CLIENT_ID`
+   (both can be added later in the Render dashboard → Environment).
+2. Copy the service URL Render gives you (e.g. `https://mspace-booking.onrender.com`).
+3. Put it in `public/js/config.js`: `window.MSPACE_API = 'https://mspace-booking.onrender.com';`
+   and push. The pages then talk to the server, and the admin dashboard lives at
+   `https://lightants.github.io/MSpace-app-fable/admin.html`.
+4. Free-tier Render services sleep after 15 minutes idle and wake in ~30 s on the first request;
+   the reminder scheduler also pauses while asleep. The Starter plan ($7/mo) keeps it always on.
+   Add a persistent disk mounted at `/opt/render/project/src/data` so the database and uploads survive deploys.
+
+## Going live elsewhere
 
 Any host that runs Node works (Render, Railway, Fly.io, a small VPS with `pm2`). Set the
 `.env` values as environment variables there, keep the `data/` folder on persistent storage,

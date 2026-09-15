@@ -239,6 +239,9 @@ function render() {
     state.config = cfg; state.me = me.customer; renderWho();
     if (state.me) await afterSignIn(); else setStep(1);
   } catch (err) {
-    $('#main').innerHTML = `<div class="alert error"><b>Booking server not connected.</b> ${esc(err.message)}.<br>Staff: deploy the Node server and put its address in <code>js/config.js</code>.</div>`;
+    $('#main').innerHTML = `<div class="card center"><h2>Online booking is almost ready</h2><p class="lead">We're connecting the booking system. For now, reserve your slot by email and we'll send your keybox code once payment is confirmed.</p>
+      <a class="btn primary" href="mailto:mspacemind@gmail.com?subject=MSpace%20pass%20reservation&body=Name%3A%0AMobile%3A%0APass%20(Daily%20%E2%82%B1150%20%2F%20Weekly%20%E2%82%B1600%20%2F%20Monthly%20%E2%82%B12%2C000)%3A%0AStart%20date%3A">Reserve by email</a>
+      <p class="small muted" style="margin-top:14px">Daily ₱150 (6 AM – 6 PM) · Weekly ₱600 · Monthly ₱2,000 · 24/7 access</p>
+      <p class="small muted" title="${esc(err.message)}">Staff: the booking server is not reachable from this page yet.</p></div>`;
   }
 })();

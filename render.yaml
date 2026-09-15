@@ -1,0 +1,35 @@
+# One-click backend hosting on Render (https://render.com). Click "Deploy to Render" in the README,
+# or create a Blueprint from this repo. Free tier works; add a paid disk if you want uploads kept forever.
+services:
+  - type: web
+    name: mspace-booking
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/config
+    envVars:
+      - key: NODE_VERSION
+        value: "24"
+      - key: PUBLIC_URL
+        value: https://lightants.github.io/MSpace-app-fable
+      - key: CORS_ORIGIN
+        value: https://lightants.github.io
+      - key: ADMIN_PASSWORD
+        generateValue: true
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: SMTP_HOST
+        value: smtp.gmail.com
+      - key: SMTP_PORT
+        value: "465"
+      - key: SMTP_USER
+        value: mspacemind@gmail.com
+      - key: SMTP_PASS
+        sync: false
+      - key: MAIL_FROM
+        value: MSpace <mspacemind@gmail.com>
+      - key: OWNER_EMAIL
+        value: mspacemind@gmail.com
+      - key: GOOGLE_CLIENT_ID
+        sync: false

@@ -14,7 +14,7 @@
     const N = 420;
     const mk = () => ({ x: (Math.random() - .5) * 2, y: (Math.random() - .5) * 2, z: Math.random() * 0.9 + 0.1, pz: 0 });
     function size() {
-      W = intro.clientWidth; H = intro.clientHeight; cx = W / 2; cy = H / 2;
+      W = innerWidth; H = innerHeight; cx = W / 2; cy = H / 2;
       warp.width = W * dpr; warp.height = H * dpr; warp.style.width = W + 'px'; warp.style.height = H + 'px';
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       if (!stars.length) for (let i = 0; i < N; i++) { const s = mk(); s.pz = s.z; stars.push(s); }
@@ -44,7 +44,8 @@
       target = 0.02 + progress * 1.4;                     // faster warp as you scroll
       intro.style.setProperty('--p', progress.toFixed(3));
       document.body.classList.toggle('entered', progress > 0.85);
-      if (progress >= 1 && !done) { done = true; }          // stop drawing once fully scrolled past
+      warp.style.visibility = progress >= 1 ? 'hidden' : 'visible';
+      if (progress >= 1 && !done) { done = true; }          // stop drawing once fully faded out
       if (progress < 1 && done) { done = false; requestAnimationFrame(frame); }
     }
     size();
