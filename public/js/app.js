@@ -32,7 +32,7 @@ function renderWho() {
   $('#who').innerHTML = me
     ? `${me.picture ? `<img src="${esc(me.picture)}" alt="">` : ''}<span>${esc(me.name)}</span> <button class="btn small" id="signout">Sign out</button>`
     : '';
-  $('#signout')?.addEventListener('click', async () => { await api('/api/auth/logout', { method: 'POST' }); sessionStorage.removeItem('ms_booking'); location.reload(); });
+  $('#signout')?.addEventListener('click', async () => { if (!state.offline) await api('/api/auth/logout', { method: 'POST' }); sessionStorage.removeItem('ms_booking'); sessionStorage.removeItem('ms_offline_me'); location.reload(); });
 }
 const errorHtml = () => (state.error ? `<div class="alert error">${esc(state.error)}</div>` : '');
 
@@ -60,9 +60,14 @@ function renderSignup() {
   if (cfg.googleClientId) mountGoogle();
   $('#emailForm')?.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const f = new FormData(e.target);
+    const f = Object.fromEntries(new FormData(e.target));
+    if (state.offline) {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email || '')) { state.error = 'Please enter a valid email address.'; return render(); }
+      state.me = { name: f.name.trim(), email: f.email.trim().toLowerCase(), phone: (f.phone || '').trim() };
+      sessionStorage.setItem('ms_offline_me', JSON.stringify(state.me)); renderWho(); return afterSignIn();
+    }
     try {
-      const { customer } = await api('/api/auth/email', { method: 'POST', body: JSON.stringify(Object.fromEntries(f)) });
+      const { customer } = await api('/api/auth/email', { method: 'POST', body: JSON.stringify(f) });
       state.me = customer; renderWho(); await afterSignIn();
     } catch (err) { state.error = err.message; render(); }
   });
@@ -84,6 +89,7 @@ function mountGoogle() {
   const s = document.createElement('script'); s.src = 'https://accounts.google.com/gsi/client'; s.async = true; s.onload = init; document.head.appendChild(s);
 }
 async function afterSignIn() {
+  if (state.offline) return setStep(2);
   // Resume an unfinished booking, otherwise show existing passes + start a new one.
   const { bookings } = await api('/api/my-bookings');
   state.myBookings = bookings;
@@ -166,6 +172,13 @@ function renderRules() {
   $('#back').addEventListener('click', () => setStep(2));
   $('#agree').addEventListener('click', async () => {
     $('#agree').disabled = true; $('#agree').textContent = 'Creating booking…';
+    if (state.offline) {
+      const plan = state.config.plans.find((p) => p.id === state.plan); const w = previewWindow(state.plan, state.startDate);
+      if (w.end <= Date.now()) { state.error = 'Today\'s daily window (6:00 AM – 6:00 PM) has already ended. Please choose tomorrow or later.'; return render(); }
+      state.booking = { id: 'MS-' + Math.random().toString(16).slice(2, 8).toUpperCase(), plan: plan.id, planName: plan.name, amount: plan.price,
+        start_at: w.start.getTime(), end_at: w.end.getTime(), name: state.me.name, email: state.me.email, phone: state.phone, startDate: state.startDate };
+      sessionStorage.setItem('ms_booking', JSON.stringify(state.booking)); return setStep(4);
+    }
     try {
       const { booking } = await api('/api/bookings', { method: 'POST', body: JSON.stringify({ plan: state.plan, startDate: state.startDate, phone: state.phone, agreed: true }) });
       state.booking = booking; sessionStorage.setItem('ms_booking', JSON.stringify(booking)); setStep(4);
@@ -201,6 +214,12 @@ function renderPay() {
     e.preventDefault();
     const btn = $('#payForm button[type=submit]'); btn.disabled = true; btn.textContent = 'Submitting…';
     const fd = new FormData(e.target); fd.set('method', state.method);
+    if (state.offline) {
+      const subject = `MSpace ${b.planName} — ${b.name} — ${b.id}`;
+      const body = `Booking ID: ${b.id}\nName: ${b.name}\nMobile: ${b.phone}\nEmail: ${b.email}\nPass: ${b.planName} (₱${b.amount})\nAccess: ${fmtDT(b.start_at)} → ${fmtDT(b.end_at)}\nPaid via: ${state.method === 'gcash' ? 'GCash' : 'InstaPay'}\n\n>>> Please ATTACH your payment screenshot to this email before sending. <<<\n\nI agree to the MSpace policies, house rules and checkout list.`;
+      location.href = `mailto:mspacemind@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      b.payment_method = state.method; b.offline = true; sessionStorage.removeItem('ms_booking'); return setTimeout(() => setStep(5), 400);
+    }
     try {
       const { booking } = await api(`/api/bookings/${b.id}/payment`, { method: 'POST', body: fd });
       state.booking = booking; sessionStorage.removeItem('ms_booking'); setStep(5);
@@ -211,6 +230,26 @@ function renderPay() {
 /* ---------- step 5: done ---------- */
 function renderDone() {
   const b = state.booking; const cfg = state.config;
+  if (b.offline) {
+    $('#main').innerHTML = `
+  <div class="card">
+    <div class="alert success">✅ Almost done! Your email app opened with your reservation.</div>
+    <h2>What happens next</h2>
+    <ol class="rules">
+      <li><b>Attach your payment screenshot</b> to that email and press send. <a href="#" id="reopen">Open the email again</a> if it closed.</li>
+      <li>We verify the payment and email your <b>keybox code</b> to <b>${esc(b.email)}</b>. Check spam if it does not arrive.</li>
+      <li>Open the keybox, take the key, unlock, and <b>put the key back inside the keybox</b>.</li>
+      <li>Before leaving: aircon off, table clean, doors locked, keys in the keybox.</li>
+    </ol>
+    <div class="kv"><span>Booking ID</span><b>${esc(b.id)}</b></div>
+    <div class="kv"><span>Pass</span><b>${esc(b.planName)} · ₱${Number(b.amount).toLocaleString('en-PH')}</b></div>
+    <div class="kv"><span>Access</span><b>${fmtDT(b.start_at)} → ${fmtDT(b.end_at)}</b></div>
+    <div class="kv"><span>Checkout hours</span><b>${cfg.hours.checkoutStart}:00 AM – ${cfg.hours.checkoutEnd - 12}:00 PM</b></div>
+    <div class="actions"><a class="btn primary" href="index.html">Book another pass</a></div>
+  </div>`;
+    $('#reopen').addEventListener('click', (e) => { e.preventDefault(); state.step = 4; state.booking = b; renderPay(); $('#payForm').requestSubmit(); });
+    return;
+  }
   $('#main').innerHTML = `
   <div class="card">
     <div class="alert success">✅ Payment submitted! We are verifying your ${esc(b.planName)}.</div>
@@ -239,45 +278,25 @@ function render() {
     state.config = cfg; state.me = me.customer; renderWho();
     if (state.me) await afterSignIn(); else setStep(1);
   } catch (err) {
-    renderOfflineSignup(err);
+    await startOffline(err);
   }
 })();
 
-/* Fallback when the booking server is unreachable (e.g. GitHub Pages without a backend):
-   same sign-up form; submitting opens an email to MSpace with the reservation details. */
-function renderOfflineSignup(err) {
-  const plans = [['daily', 'Daily Pass — ₱150 (6 AM – 6 PM)'], ['weekly', 'Weekly Pass — ₱600 (24/7, 7 days)'], ['monthly', 'Monthly Pass — ₱2,000 (24/7, 30 days)']];
-  const today = new Date(); const p = (n) => String(n).padStart(2, '0');
-  const todayStr = `${today.getFullYear()}-${p(today.getMonth() + 1)}-${p(today.getDate())}`;
-  $('#main').innerHTML = `
-  <div class="card">
-    <h2>Sign up to book a pass</h2>
-    <p class="lead">Enter your details and pick a pass. We'll confirm by email and send your keybox code once payment is verified.</p>
-    <form id="offlineForm">
-      <label class="field"><span>Full name</span><input name="name" required placeholder="Juan dela Cruz" autocomplete="name"></label>
-      <label class="field"><span>Mobile number (GCash)</span><input name="phone" required placeholder="09XX XXX XXXX" autocomplete="tel" inputmode="tel"></label>
-      <label class="field"><span>Gmail address</span><input name="email" type="email" required placeholder="you@gmail.com" autocomplete="email" inputmode="email"></label>
-      <div class="row">
-        <label class="field"><span>Pass</span><select name="plan">${plans.map(([v, l], i) => `<option value="${v}" ${i === 2 ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
-        <label class="field"><span>Start date</span><input name="date" type="date" min="${todayStr}" value="${todayStr}"></label>
-      </div>
-      <button class="btn primary block" type="submit">Continue</button>
-      <p class="small muted center" style="margin-top:12px">This opens an email to <b>mspacemind@gmail.com</b> with your reservation. Pay via GCash after we confirm.</p>
-    </form>
-  </div>
-  <div class="card">
-    <h3>How it works</h3>
-    <ol class="rules"><li>Send your reservation.</li><li>We confirm and share the GCash QR.</li><li>Pay and reply with the receipt screenshot.</li><li>We email your <b>keybox code</b>.</li></ol>
-    <p class="small muted" style="margin-top:10px" title="${esc(err?.message || '')}">Staff: online booking runs in offline mode until the booking server is connected.</p>
-  </div>`;
-  $('#offlineForm').addEventListener('submit', (e) => {
-    e.preventDefault();
-    const f = Object.fromEntries(new FormData(e.target));
-    const planLabel = plans.find(([v]) => v === f.plan)[1];
-    const subject = `MSpace pass reservation — ${f.name}`;
-    const body = `Name: ${f.name}\nMobile: ${f.phone}\nEmail: ${f.email}\nPass: ${planLabel}\nStart date: ${f.date}\n\nPlease confirm my slot. I agree to the MSpace policies and house rules.`;
-    location.href = `mailto:mspacemind@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-    e.target.querySelector('button').textContent = 'Email opened — send it to finish';
-  });
+/* Offline mode (GitHub Pages without the booking server): the same 5 steps run in the browser;
+   the reservation + screenshot are emailed to MSpace at the pay step. */
+async function startOffline(err) {
+  console.warn('Booking server unreachable, running offline:', err?.message);
+  const m = await import('./content.js');
+  state.offline = true;
+  const d = new Date(); const p = (n) => String(n).padStart(2, '0');
+  state.config = {
+    business: m.BUSINESS, hours: m.HOURS, plans: Object.values(m.PLANS), policies: m.POLICIES, houseRules: m.HOUSE_RULES,
+    checklist: m.CHECKOUT_CHECKLIST, paymentMethods: Object.values(m.PAYMENT_METHODS), payment: m.PAYMENT_DEFAULTS,
+    today: `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`, googleClientId: null,
+  };
+  try { state.me = JSON.parse(sessionStorage.getItem('ms_offline_me') || 'null'); } catch { state.me = null; }
+  renderWho();
+  if (state.me && state.booking) return setStep(4);
+  if (state.me) return setStep(2);
+  setStep(1);
 }
-

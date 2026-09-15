@@ -82,3 +82,9 @@ export const PAYMENT_METHODS = {
   gcash:    { id: 'gcash',    name: 'GCash' },
   instapay: { id: 'instapay', name: 'InstaPay (bank app)' },
 };
+
+// Shown on the payment step when the booking server is not connected (GitHub Pages only).
+export const PAYMENT_DEFAULTS = {
+  gcash: { name: 'MSpace (CL**E MA***N A.)', number: '+63 917 134 ••••', qr: 'img/gcash-qr.png' },
+  instapay: { name: 'MSpace', bank: 'GCash via QR Ph / InstaPay', number: '+63 917 134 ••••', qr: 'img/gcash-qr.png' },
+};

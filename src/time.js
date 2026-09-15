@@ -1,4 +1,4 @@
-import { HOURS, PLANS } from './content.js';
+import { HOURS, PLANS } from '../public/js/content.js';
 
 export const MIN = 60_000;
 export const HOUR = 60 * MIN;

@@ -1,6 +1,6 @@
 import nodemailer from 'nodemailer';
 import { logEmail, setting } from './db.js';
-import { BUSINESS, PLANS, CHECKOUT_CHECKLIST, HOURS } from './content.js';
+import { BUSINESS, PLANS, CHECKOUT_CHECKLIST, HOURS } from '../public/js/content.js';
 import { fmtDateTime, fmtDate, fmtTime, peso } from './time.js';
 
 const PUBLIC_URL = (process.env.PUBLIC_URL || 'http://localhost:4600').replace(/\/$/, '');

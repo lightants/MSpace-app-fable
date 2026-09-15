@@ -9,7 +9,7 @@ import {
   allSettings, saveSettings, setting, createBooking, getBooking, getBookingByToken, updateBooking, listBookings,
   listOutbox, getOutboxItem, notificationsFor, stats, listCustomers, updateCustomer, getCustomer,
 } from './src/db.js';
-import { BUSINESS, HOURS, PLANS, POLICIES, HOUSE_RULES, CHECKOUT_CHECKLIST, PAYMENT_METHODS } from './src/content.js';
+import { BUSINESS, HOURS, PLANS, POLICIES, HOUSE_RULES, CHECKOUT_CHECKLIST, PAYMENT_METHODS } from './public/js/content.js';
 import { computeWindow, todayStr, peso, fmtDateTime } from './src/time.js';
 import { sendTemplate, sendMail, templates, mailEnabled } from './src/mailer.js';
 import {

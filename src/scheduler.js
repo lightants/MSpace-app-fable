@@ -3,7 +3,7 @@
 import { activeBookings, claimNotification, stalePending, updateBooking } from './db.js';
 import { sendTemplate } from './mailer.js';
 import { DAY, HOUR, MIN, atHour, sameDay } from './time.js';
-import { HOURS } from './content.js';
+import { HOURS } from '../public/js/content.js';
 
 async function notify(b, kind, template, ...args) {
   if (!claimNotification(b.id, kind)) return;
