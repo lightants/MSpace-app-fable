@@ -1,8 +1,9 @@
 /* Pass page: status, live countdown, keybox code, Wi-Fi, checkout checklist. */
+const API = (window.MSPACE_API || '').replace(/\/$/, '');
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const fmtDT = (ms) => new Date(ms).toLocaleString('en-PH', { timeZone: 'Asia/Manila', weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
-const token = location.pathname.split('/').pop();
+const token = new URLSearchParams(location.search).get('t') || location.pathname.split('/').pop();
 let data, offset = 0, timer;
 
 const STATUS_TEXT = {
@@ -40,8 +41,8 @@ function render() {
     </div>
     <p class="lead">${esc(b.name)}</p>
     ${b.status === 'pending' ? `<div class="alert info">⏳ We are verifying your ${esc(b.payment_method)} payment screenshot. Your keybox code will be emailed to <b>${esc(b.email)}</b>. This page updates automatically.</div>` : ''}
-    ${b.status === 'rejected' ? `<div class="alert error">We could not verify this payment. Please reply to our email with your receipt, or <a href="/">book again</a>.</div>` : ''}
-    ${b.status === 'new' ? `<div class="alert info">This booking has no payment yet. <a href="/">Continue to payment →</a></div>` : ''}
+    ${b.status === 'rejected' ? `<div class="alert error">We could not verify this payment. Please reply to our email with your receipt, or <a href="index.html">book again</a>.</div>` : ''}
+    ${b.status === 'new' ? `<div class="alert info">This booking has no payment yet. <a href="index.html">Continue to payment →</a></div>` : ''}
     ${active || b.status === 'expired' ? `<div class="countdown" id="cd"></div>` : ''}
     ${active ? `<div class="codebox" id="codebox" title="Tap to reveal"><div class="lbl">Keybox code · tap to reveal</div><div class="code blur" id="code">${esc(b.keybox_code || '····')}</div></div>
       <p class="small muted center">Open the keybox, take the key, unlock the door, then <b>put the key back inside the keybox</b>. Never share this code.</p>` : ''}
@@ -60,7 +61,7 @@ function render() {
     <div class="actions"><button class="btn primary block" id="checkout" disabled>Complete checkout</button></div>
     <p class="small muted center" style="margin-top:10px">Leaving for a bit and coming back? Just do the list — no need to press the button until your last day.</p>
   </div>` : ''}
-  ${b.status === 'checked_out' ? `<div class="card center"><h2>Thank you for building with us! 🙌</h2><p class="muted">Same people, bigger possibilities. See you next time.</p><div class="actions"><a class="btn primary" href="/">Book your next pass</a></div></div>` : ''}`;
+  ${b.status === 'checked_out' ? `<div class="card center"><h2>Thank you for building with us! 🙌</h2><p class="muted">Same people, bigger possibilities. See you next time.</p><div class="actions"><a class="btn primary" href="index.html">Book your next pass</a></div></div>` : ''}`;
 
   $('#codebox')?.addEventListener('click', () => $('#code').classList.toggle('blur'));
   const boxes = [...document.querySelectorAll('.checklist input')];
@@ -70,7 +71,7 @@ function render() {
   $('#checkout')?.addEventListener('click', async () => {
     const checklist = Object.fromEntries(boxes.map((x) => [x.dataset.id, x.checked]));
     if (!confirm('Complete checkout? This ends your pass on our side.')) return;
-    const r = await fetch(`/api/pass/${token}/checkout`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ checklist, keyboxCode: $('#kbcode').value }) });
+    const r = await fetch(`${API}/api/pass/${token}/checkout`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ checklist, keyboxCode: $('#kbcode').value }) });
     const j = await r.json();
     if (!r.ok) { $('#err').innerHTML = `<div class="alert error">${esc(j.error)}</div>`; return; }
     data.booking = j.booking; clearInterval(timer); render();
@@ -79,9 +80,9 @@ function render() {
 }
 
 async function load() {
-  const r = await fetch(`/api/pass/${token}`);
+  const r = await fetch(`${API}/api/pass/${token}`);
   const j = await r.json();
-  if (!r.ok) { $('#main').innerHTML = `<div class="card"><div class="alert error">${esc(j.error)}</div><a class="btn primary" href="/">Book a pass</a></div>`; return; }
+  if (!r.ok) { $('#main').innerHTML = `<div class="card"><div class="alert error">${esc(j.error)}</div><a class="btn primary" href="index.html">Book a pass</a></div>`; return; }
   data = j; offset = j.now - Date.now(); render();
   if (['pending', 'new'].includes(j.booking.status)) setTimeout(load, 20000);   // auto-refresh while waiting for verification
 }

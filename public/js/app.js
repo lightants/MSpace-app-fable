@@ -1,10 +1,11 @@
 /* MSpace booking flow: 1 sign up (Gmail) → 2 choose pass → 3 agree to rules → 4 pay via QR → 5 done */
+const API = (window.MSPACE_API || '').replace(/\/$/, '');
 const $ = (s, el = document) => el.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const peso = (n) => '₱' + Number(n).toLocaleString('en-PH');
 const fmtDT = (ms) => new Date(ms).toLocaleString('en-PH', { timeZone: 'Asia/Manila', weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 const api = async (url, opts = {}) => {
-  const r = await fetch(url, { headers: opts.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }, credentials: 'same-origin', ...opts });
+  const r = await fetch(API + url, { headers: opts.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }, credentials: 'include', ...opts });
   const data = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(data.error || 'Request failed');
   return data;
@@ -105,7 +106,7 @@ function renderPlans() {
   state.startDate ||= cfg.today;
   const mine = (state.myBookings || []).filter((b) => ['pending', 'confirmed'].includes(b.status));
   $('#main').innerHTML = `
-  ${mine.length ? `<div class="card"><h3>Your passes</h3>${mine.map((b) => `<div class="kv"><span>${esc(b.planName)} · ${esc(b.id)} <span class="pill ${b.status}">${b.status}</span></span><b><a href="/pass/${b.token}">Open pass →</a></b></div>`).join('')}</div>` : ''}
+  ${mine.length ? `<div class="card"><h3>Your passes</h3>${mine.map((b) => `<div class="kv"><span>${esc(b.planName)} · ${esc(b.id)} <span class="pill ${b.status}">${b.status}</span></span><b><a href="pass.html?t=${b.token}">Open pass →</a></b></div>`).join('')}</div>` : ''}
   <div class="card">
     <h2>Choose your pass</h2>
     <p class="lead">Hi ${esc(state.me.name.split(' ')[0])}! Pick the pass that fits your grind.</p>
@@ -184,7 +185,7 @@ function renderPay() {
     <p class="lead">Booking <b>${esc(b.id)}</b> · ${fmtDT(b.start_at)} → ${fmtDT(b.end_at)}</p>
     <div class="amount">${peso(b.amount)}</div>
     <div class="methods"><button type="button" data-m="gcash" class="${state.method === 'gcash' ? 'on' : ''}">GCash</button><button type="button" data-m="instapay" class="${state.method === 'instapay' ? 'on' : ''}">InstaPay</button></div>
-    <div class="qrbox"><img src="${pay.qr}?v=${Date.now()}" alt="${esc(state.method)} QR code"></div>
+    <div class="qrbox"><img src="${API}${pay.qr}?v=${Date.now()}" alt="${esc(state.method)} QR code"></div>
     ${acct}
     <ol class="rules small"><li>Open your ${state.method === 'gcash' ? 'GCash app → Scan QR' : 'bank app → InstaPay / QR Ph'} and scan the code above.</li><li>Send exactly <b>${peso(b.amount)}</b>.</li><li>Take a <b>screenshot of the receipt</b> and upload it below.</li></ol>
     ${errorHtml()}
@@ -223,7 +224,7 @@ function renderDone() {
     <div class="kv"><span>Booking ID</span><b>${esc(b.id)}</b></div>
     <div class="kv"><span>Access</span><b>${fmtDT(b.start_at)} → ${fmtDT(b.end_at)}</b></div>
     <div class="kv"><span>Checkout hours</span><b>${cfg.hours.checkoutStart}:00 AM – ${cfg.hours.checkoutEnd - 12}:00 PM</b></div>
-    <div class="actions"><a class="btn primary" href="/pass/${b.token}">Open my pass page →</a></div>
+    <div class="actions"><a class="btn primary" href="pass.html?t=${b.token}">Open my pass page →</a></div>
     <p class="small muted center" style="margin-top:12px">Bookmark your pass page — the link is also in your email.</p>
   </div>`;
 }
@@ -237,5 +238,7 @@ function render() {
     const [cfg, me] = await Promise.all([api('/api/config'), api('/api/me')]);
     state.config = cfg; state.me = me.customer; renderWho();
     if (state.me) await afterSignIn(); else setStep(1);
-  } catch (err) { $('#main').innerHTML = `<div class="alert error">${esc(err.message)}</div>`; }
+  } catch (err) {
+    $('#main').innerHTML = `<div class="alert error"><b>Booking server not connected.</b> ${esc(err.message)}.<br>Staff: deploy the Node server and put its address in <code>js/config.js</code>.</div>`;
+  }
 })();

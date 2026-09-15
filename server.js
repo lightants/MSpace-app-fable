@@ -28,6 +28,21 @@ app.set('trust proxy', 1);
 app.use(express.json({ limit: '200kb' }));
 app.use(express.static(PUBLIC_DIR, { extensions: ['html'] }));
 
+// Cross-origin support when the pages are hosted elsewhere (e.g. GitHub Pages) and only the API runs here.
+const CORS_ORIGINS = (process.env.CORS_ORIGIN || '').split(',').map((s) => s.trim().replace(/\/$/, '')).filter(Boolean);
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin && CORS_ORIGINS.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+    res.setHeader('Vary', 'Origin');
+    if (req.method === 'OPTIONS') return res.sendStatus(204);
+  }
+  next();
+});
+
 const upload = multer({
   storage: multer.diskStorage({
     destination: UPLOAD_DIR,
@@ -49,7 +64,7 @@ const publicBooking = (b, { full = false } = {}) => ({
 
 // ---------- pages ----------
 app.get('/', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'index.html')));
-app.get('/pass/:token', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'pass.html')));
+app.get('/pass/:token', (req, res) => res.redirect(`/pass.html?t=${encodeURIComponent(req.params.token)}`));
 app.get('/admin', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'admin.html')));
 
 // ---------- public config ----------

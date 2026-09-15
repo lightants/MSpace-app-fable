@@ -1,10 +1,11 @@
 /* Admin: verify payments (sends keybox code), customers, settings, email log, poster. */
+const API = (window.MSPACE_API || '').replace(/\/$/, '');
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const peso = (n) => '₱' + Number(n).toLocaleString('en-PH');
 const fmtDT = (ms) => (ms ? new Date(ms).toLocaleString('en-PH', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—');
 const api = async (url, opts = {}) => {
-  const r = await fetch(url, { headers: opts.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }, ...opts });
+  const r = await fetch(API + url, { headers: opts.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }, credentials: 'include', ...opts });
   const d = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(d.error || 'Request failed');
   return d;
@@ -42,7 +43,7 @@ function shell(inner) {
     <div class="stat"><div class="n">${peso(s.revenue30)}</div><div class="l">Revenue · 30d</div></div>
   </div>
   <div class="tabs">${['bookings', 'customers', 'settings', 'emails'].map((t) => `<button data-t="${t}" class="${state.tab === t ? 'on' : ''}">${t[0].toUpperCase() + t.slice(1)}</button>`).join('')}
-    <a class="btn small" href="/admin/poster" target="_blank">🖨 Entrance QR poster</a><a class="btn small" href="/" target="_blank">Customer site ↗</a></div>
+    <a class="btn small" href="${API}/admin/poster" target="_blank">🖨 Entrance QR poster</a><a class="btn small" href="index.html" target="_blank">Customer site ↗</a></div>
   <div id="tab">${inner}</div>`;
   document.querySelectorAll('.tabs button').forEach((b) => b.onclick = () => { state.tab = b.dataset.t; render(); });
 }
@@ -59,13 +60,13 @@ function renderBookings() {
       <td>${esc(b.name)}<div class="sub">${esc(b.email)}<br>${esc(b.phone || '')}</div></td>
       <td>${esc(b.planName)}<div class="sub">${peso(b.amount)}</div></td>
       <td class="sub">${fmtDT(b.start_at)}<br>→ ${fmtDT(b.end_at)}</td>
-      <td>${b.payment_method ? `${esc(b.payment_method)}` : '<span class="sub">none yet</span>'}${b.proof_path ? `<div><a class="btn small" href="/api/admin/proof/${b.id}" target="_blank">📷 View screenshot</a></div>` : ''}</td>
+      <td>${b.payment_method ? `${esc(b.payment_method)}` : '<span class="sub">none yet</span>'}${b.proof_path ? `<div><a class="btn small" href="${API}/api/admin/proof/${b.id}" target="_blank">📷 View screenshot</a></div>` : ''}</td>
       <td><span class="pill ${b.status}">${b.status.replace('_', ' ')}</span>${b.keybox_code ? `<div class="sub">code ${esc(b.keybox_code)}</div>` : ''}${b.notifications?.length ? `<div class="sub">${b.notifications.map((n) => n.kind).join(', ')}</div>` : ''}</td>
       <td style="white-space:nowrap">
         ${b.status === 'pending' ? `<button class="btn small success" data-a="confirm" data-id="${b.id}">✓ Confirm & send code</button> <button class="btn small danger" data-a="reject" data-id="${b.id}">Reject</button>` : ''}
         ${b.status === 'confirmed' ? `<button class="btn small" data-a="resend" data-id="${b.id}">Resend code</button> <button class="btn small" data-a="checkout" data-id="${b.id}">Check out</button>` : ''}
         ${['new', 'pending'].includes(b.status) ? `<button class="btn small" data-a="cancel" data-id="${b.id}">Cancel</button>` : ''}
-        <a class="btn small" href="/pass/${b.token}" target="_blank">Pass ↗</a>
+        <a class="btn small" href="pass.html?t=${b.token}" target="_blank">Pass ↗</a>
       </td></tr>`).join('')}</tbody></table>` : '<p class="muted center">No bookings here.</p>'}</div>`);
   document.querySelectorAll('.filters button').forEach((b) => b.onclick = () => { state.filter = b.dataset.f; refresh(); });
   document.querySelectorAll('[data-a]').forEach((b) => b.onclick = () => action(b.dataset.a, b.dataset.id));
@@ -83,7 +84,7 @@ async function action(a, id) {
 function confirmModal(id) {
   const b = state.data.bookings.find((x) => x.id === id); const cur = state.data.settings.keybox_code;
   const m = document.createElement('div'); m.className = 'modal';
-  m.innerHTML = `<div class="card"><h2>Confirm ${esc(b.id)}</h2><p class="lead">${esc(b.name)} · ${esc(b.planName)} · ${peso(b.amount)} via ${esc(b.payment_method)} · <a href="/api/admin/proof/${b.id}" target="_blank">📷 view screenshot</a></p>
+  m.innerHTML = `<div class="card"><h2>Confirm ${esc(b.id)}</h2><p class="lead">${esc(b.name)} · ${esc(b.planName)} · ${peso(b.amount)} via ${esc(b.payment_method)} · <a href="${API}/api/admin/proof/${b.id}" target="_blank">📷 view screenshot</a></p>
     <label class="field"><span>Keybox code to email</span><input id="kb" value="${esc(cur)}" placeholder="e.g. 2468"></label>
     <p class="small muted">Defaults to the current keybox code from Settings. Change it here only if this customer gets a different code.</p>
     <div class="actions"><button class="btn" id="mclose">Cancel</button><button class="btn primary" id="mgo">Confirm & email code</button></div></div>`;
@@ -99,7 +100,7 @@ function confirmModal(id) {
 /* ---------- customers ---------- */
 async function renderCustomers() {
   const { customers } = await api('/api/admin/customers');
-  shell(`<div class="card tablewrap"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:10px;flex-wrap:wrap"><h2>Customers (${customers.length})</h2><a class="btn small" href="/api/admin/customers.csv">⬇ Export CSV</a></div>
+  shell(`<div class="card tablewrap"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:10px;flex-wrap:wrap"><h2>Customers (${customers.length})</h2><a class="btn small" href="${API}/api/admin/customers.csv">⬇ Export CSV</a></div>
     ${customers.length ? `<table class="data"><thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Sign-up</th><th>Last seen</th><th>Passes</th><th>Spent</th></tr></thead><tbody>
     ${customers.map((c) => `<tr><td>${c.picture ? `<img src="${esc(c.picture)}" style="width:22px;height:22px;border-radius:50%;vertical-align:middle;margin-right:6px">` : ''}${esc(c.name)}</td><td>${esc(c.email)}</td><td>${esc(c.phone || '—')}</td><td class="sub">${esc(c.provider)} · ${fmtDT(c.created_at)}</td><td class="sub">${fmtDT(c.last_login_at)} · ${c.visits} visits</td><td>${c.passes}</td><td>${peso(c.spent)}</td></tr>`).join('')}
     </tbody></table>` : '<p class="muted center">No customers yet. They appear here as soon as they sign up with Gmail.</p>'}</div>`);
@@ -132,7 +133,7 @@ async function renderEmails() {
   const { outbox } = await api('/api/admin/outbox');
   shell(`<div class="card tablewrap"><h2>Email log</h2><p class="lead">${state.session.mailEnabled ? 'Emails are sent through SMTP.' : 'SMTP is not configured: emails are recorded here as dry-run so you can preview them. Set SMTP_* in .env to send for real.'}</p>
     ${outbox.length ? `<table class="data"><thead><tr><th>When</th><th>To</th><th>Subject</th><th>Status</th><th></th></tr></thead><tbody>
-    ${outbox.map((m) => `<tr><td class="sub">${fmtDT(m.created_at)}</td><td>${esc(m.to_addr)}</td><td>${esc(m.subject)}</td><td><span class="pill ${m.status === 'sent' ? 'confirmed' : m.status === 'failed' ? 'rejected' : 'pending'}">${m.status}</span>${m.error ? `<div class="sub">${esc(m.error)}</div>` : ''}</td><td><a class="btn small" href="/api/admin/outbox/${m.id}" target="_blank">Preview</a></td></tr>`).join('')}
+    ${outbox.map((m) => `<tr><td class="sub">${fmtDT(m.created_at)}</td><td>${esc(m.to_addr)}</td><td>${esc(m.subject)}</td><td><span class="pill ${m.status === 'sent' ? 'confirmed' : m.status === 'failed' ? 'rejected' : 'pending'}">${m.status}</span>${m.error ? `<div class="sub">${esc(m.error)}</div>` : ''}</td><td><a class="btn small" href="${API}/api/admin/outbox/${m.id}" target="_blank">Preview</a></td></tr>`).join('')}
     </tbody></table>` : '<p class="muted center">No emails yet.</p>'}</div>`);
 }
 

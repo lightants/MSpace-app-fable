@@ -67,7 +67,7 @@ const rows = (pairs) => `<table style="width:100%;border-collapse:collapse;font-
 export function checklistHtml() {
   return `<ol style="padding-left:18px;margin:8px 0 14px">${CHECKOUT_CHECKLIST.map((c) => `<li style="margin:6px 0;line-height:1.5">${c.icon} ${esc(c.text)}</li>`).join('')}</ol>`;
 }
-const passLink = (b) => `${PUBLIC_URL}/pass/${b.token}`;
+const passLink = (b) => `${PUBLIC_URL}/pass.html?t=${b.token}`;
 const planName = (b) => PLANS[b.plan]?.name ?? b.plan;
 const summary = (b) => rows([
   ['Booking ID', b.id],

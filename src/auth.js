@@ -34,8 +34,10 @@ export function parseCookies(req) {
   return out;
 }
 function setCookie(res, name, value, maxAgeSec) {
-  const secure = (process.env.PUBLIC_URL || '').startsWith('https://') ? '; Secure' : '';
-  res.append('Set-Cookie', `${name}=${encodeURIComponent(value)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAgeSec}${secure}`);
+  // Cross-site cookies (pages on GitHub Pages, API elsewhere) need SameSite=None; Secure.
+  const crossSite = !!process.env.CORS_ORIGIN;
+  const secure = crossSite || (process.env.PUBLIC_URL || '').startsWith('https://') ? '; Secure' : '';
+  res.append('Set-Cookie', `${name}=${encodeURIComponent(value)}; Path=/; HttpOnly; SameSite=${crossSite ? 'None' : 'Lax'}; Max-Age=${maxAgeSec}${secure}`);
 }
 export function clearCookie(res, name) {
   res.append('Set-Cookie', `${name}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`);
