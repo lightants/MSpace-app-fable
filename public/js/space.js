@@ -10,7 +10,7 @@
   const warp = document.getElementById('warp');
   if (intro && warp) {
     const ctx = warp.getContext('2d');
-    let W = 0, H = 0, cx = 0, cy = 0, stars = [], speed = 0.02, target = 0.02, progress = 0, done = false;
+    let W = 0, H = 0, cx = 0, cy = 0, stars = [], speed = 0.03, target = 0.03, progress = 0, done = false;
     const N = 420;
     const mk = () => ({ x: (Math.random() - .5) * 2, y: (Math.random() - .5) * 2, z: Math.random() * 0.9 + 0.1, pz: 0 });
     function size() {
@@ -33,7 +33,7 @@
         if (x < -50 || x > W + 50 || y < -50 || y > H + 50) { Object.assign(s, mk()); s.z = 1; s.pz = 1; continue; }
         const t = 1 - s.z;
         ctx.strokeStyle = Math.random() < 0.12 ? `rgba(201,162,74,${0.35 + t * 0.65})` : `rgba(255,255,255,${0.25 + t * 0.75})`;
-        ctx.lineWidth = 0.6 + t * 2.2;
+        ctx.lineWidth = 0.5 + t * 1.6;
         ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(x, y); ctx.stroke();
       }
       requestAnimationFrame(frame);
@@ -41,7 +41,7 @@
     function onScroll() {
       const h = intro.offsetHeight || 1;
       progress = Math.min(Math.max(scrollY / h, 0), 1);
-      target = 0.02 + progress * 1.4;                     // faster warp as you scroll
+      target = 0.03 + progress * 0.12;                    // stays slow; only a gentle drift as you scroll
       intro.style.setProperty('--p', progress.toFixed(3));
       document.body.classList.toggle('entered', progress > 0.85);
       warp.style.visibility = progress >= 1 ? 'hidden' : 'visible';
@@ -56,7 +56,7 @@
     else requestAnimationFrame(frame);
     document.getElementById('enter')?.addEventListener('click', (e) => {
       e.preventDefault();
-      target = 2.2;                                          // punch it, then land on the main page
+      target = 0.2;                                          // gentle nudge, then land on the main page
       setTimeout(() => document.getElementById('main-start')?.scrollIntoView({ behavior: 'smooth' }), 250);
     });
   }
