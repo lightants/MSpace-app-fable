@@ -239,9 +239,45 @@ function render() {
     state.config = cfg; state.me = me.customer; renderWho();
     if (state.me) await afterSignIn(); else setStep(1);
   } catch (err) {
-    $('#main').innerHTML = `<div class="card center"><h2>Online booking is almost ready</h2><p class="lead">We're connecting the booking system. For now, reserve your slot by email and we'll send your keybox code once payment is confirmed.</p>
-      <a class="btn primary" href="mailto:mspacemind@gmail.com?subject=MSpace%20pass%20reservation&body=Name%3A%0AMobile%3A%0APass%20(Daily%20%E2%82%B1150%20%2F%20Weekly%20%E2%82%B1600%20%2F%20Monthly%20%E2%82%B12%2C000)%3A%0AStart%20date%3A">Reserve by email</a>
-      <p class="small muted" style="margin-top:14px">Daily ₱150 (6 AM – 6 PM) · Weekly ₱600 · Monthly ₱2,000 · 24/7 access</p>
-      <p class="small muted" title="${esc(err.message)}">Staff: the booking server is not reachable from this page yet.</p></div>`;
+    renderOfflineSignup(err);
   }
 })();
+
+/* Fallback when the booking server is unreachable (e.g. GitHub Pages without a backend):
+   same sign-up form; submitting opens an email to MSpace with the reservation details. */
+function renderOfflineSignup(err) {
+  const plans = [['daily', 'Daily Pass — ₱150 (6 AM – 6 PM)'], ['weekly', 'Weekly Pass — ₱600 (24/7, 7 days)'], ['monthly', 'Monthly Pass — ₱2,000 (24/7, 30 days)']];
+  const today = new Date(); const p = (n) => String(n).padStart(2, '0');
+  const todayStr = `${today.getFullYear()}-${p(today.getMonth() + 1)}-${p(today.getDate())}`;
+  $('#main').innerHTML = `
+  <div class="card">
+    <h2>Sign up to book a pass</h2>
+    <p class="lead">Enter your details and pick a pass. We'll confirm by email and send your keybox code once payment is verified.</p>
+    <form id="offlineForm">
+      <label class="field"><span>Full name</span><input name="name" required placeholder="Juan dela Cruz" autocomplete="name"></label>
+      <label class="field"><span>Mobile number (GCash)</span><input name="phone" required placeholder="09XX XXX XXXX" autocomplete="tel" inputmode="tel"></label>
+      <label class="field"><span>Gmail address</span><input name="email" type="email" required placeholder="you@gmail.com" autocomplete="email" inputmode="email"></label>
+      <div class="row">
+        <label class="field"><span>Pass</span><select name="plan">${plans.map(([v, l], i) => `<option value="${v}" ${i === 2 ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+        <label class="field"><span>Start date</span><input name="date" type="date" min="${todayStr}" value="${todayStr}"></label>
+      </div>
+      <button class="btn primary block" type="submit">Continue</button>
+      <p class="small muted center" style="margin-top:12px">This opens an email to <b>mspacemind@gmail.com</b> with your reservation. Pay via GCash after we confirm.</p>
+    </form>
+  </div>
+  <div class="card">
+    <h3>How it works</h3>
+    <ol class="rules"><li>Send your reservation.</li><li>We confirm and share the GCash QR.</li><li>Pay and reply with the receipt screenshot.</li><li>We email your <b>keybox code</b>.</li></ol>
+    <p class="small muted" style="margin-top:10px" title="${esc(err?.message || '')}">Staff: online booking runs in offline mode until the booking server is connected.</p>
+  </div>`;
+  $('#offlineForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const f = Object.fromEntries(new FormData(e.target));
+    const planLabel = plans.find(([v]) => v === f.plan)[1];
+    const subject = `MSpace pass reservation — ${f.name}`;
+    const body = `Name: ${f.name}\nMobile: ${f.phone}\nEmail: ${f.email}\nPass: ${planLabel}\nStart date: ${f.date}\n\nPlease confirm my slot. I agree to the MSpace policies and house rules.`;
+    location.href = `mailto:mspacemind@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    e.target.querySelector('button').textContent = 'Email opened — send it to finish';
+  });
+}
+
