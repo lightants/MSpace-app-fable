@@ -160,3 +160,5 @@ html{scroll-behavior:smooth}
 @keyframes scrollhint{0%{opacity:1;transform:translateY(0)}70%{opacity:0;transform:translateY(14px)}100%{opacity:0}}
 body.entered .intro{pointer-events:none}
 @media(prefers-reduced-motion:reduce){.enter i::after{animation:none}html{scroll-behavior:auto}}
+.intro .tagline{display:flex;flex-direction:column;gap:10px;align-items:center;margin-top:12px}
+.intro .tagline span:last-child{color:var(--gold-soft);letter-spacing:4px}
