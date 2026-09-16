@@ -49,26 +49,33 @@ function renderSignup() {
     <form id="emailForm">
       <label class="field"><span>Full name</span><input name="name" required placeholder="Juan dela Cruz" autocomplete="name"></label>
       <label class="field"><span>Gmail address</span><input name="email" type="email" required placeholder="you@gmail.com" autocomplete="email" inputmode="email"></label>
-      <label class="field"><span>Mobile number (GCash)</span><input name="phone" placeholder="09XX XXX XXXX" autocomplete="tel" inputmode="tel"></label>
+      <label class="field"><span>Mobile number (GCash)</span><input name="phone" required placeholder="09XX XXX XXXX" autocomplete="tel" inputmode="tel"></label>
+      <label class="field"><span>Type of valid ID</span><select name="id_type" required><option value="" disabled selected>Choose your ID</option>${cfg.idTypes.map((t) => `<option>${esc(t)}</option>`).join('')}</select></label>
+      <label class="field"><span>Photo of your valid ID (required)</span><input name="id_photo" type="file" accept="image/*" required></label>
+      <p class="small muted" style="margin:-6px 0 12px">Student ID, driver's license, passport, national ID or any government ID. Your name must match. Seen only by MSpace staff.</p>
       <button class="btn primary block" type="submit">Continue</button>
     </form>`}
   </div>
   <div class="card">
     <h3>How it works</h3>
-    <ol class="rules"><li>Sign up with your Gmail.</li><li>Choose a Daily, Weekly or Monthly pass.</li><li>Agree to the policies &amp; house rules.</li><li>Pay via GCash or InstaPay QR and upload a screenshot of your receipt.</li><li>We verify and email your <b>keybox code</b>. Your pass page shows a live time counter and checkout list.</li></ol>
+    <ol class="rules"><li>Sign up with your Gmail and a photo of a valid ID.</li><li>Choose a Daily, Weekly or Monthly pass.</li><li>Agree to the policies &amp; house rules.</li><li>Pay via GCash or InstaPay QR and upload a screenshot of your receipt.</li><li>We verify and email your <b>keybox code</b>. Your pass page shows a live time counter and checkout list.</li></ol>
   </div>`;
   if (cfg.googleClientId) mountGoogle();
   $('#emailForm')?.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const f = Object.fromEntries(new FormData(e.target));
+    const fd = new FormData(e.target); const f = Object.fromEntries(fd);
     if (state.offline) {
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email || '')) { state.error = 'Please enter a valid email address.'; return render(); }
-      state.me = { name: f.name.trim(), email: f.email.trim().toLowerCase(), phone: (f.phone || '').trim() };
+      state.me = { name: f.name.trim(), email: f.email.trim().toLowerCase(), phone: (f.phone || '').trim(), id_type: f.id_type, has_id: true };
       sessionStorage.setItem('ms_offline_me', JSON.stringify(state.me)); renderWho(); return afterSignIn();
     }
+    const btn = e.target.querySelector('button[type=submit]'); btn.disabled = true; btn.textContent = 'Signing up…';
     try {
-      const { customer } = await api('/api/auth/email', { method: 'POST', body: JSON.stringify(f) });
-      state.me = customer; renderWho(); await afterSignIn();
+      const { customer } = await api('/api/auth/email', { method: 'POST', body: JSON.stringify({ name: f.name, email: f.email, phone: f.phone }) });
+      state.me = customer; renderWho();
+      const idFd = new FormData(); idFd.set('id_type', f.id_type); idFd.set('id_photo', fd.get('id_photo'));
+      const r = await api('/api/me/id', { method: 'POST', body: idFd });
+      state.me = r.customer; await afterSignIn();
     } catch (err) { state.error = err.message; render(); }
   });
 }
@@ -90,12 +97,40 @@ function mountGoogle() {
 }
 async function afterSignIn() {
   if (state.offline) return setStep(2);
+  if (!state.me.has_id) return renderIdStep();
   // Resume an unfinished booking, otherwise show existing passes + start a new one.
   const { bookings } = await api('/api/my-bookings');
   state.myBookings = bookings;
   const unfinished = bookings.find((b) => b.status === 'new');
   if (unfinished) { state.booking = unfinished; sessionStorage.setItem('ms_booking', JSON.stringify(unfinished)); return setStep(4); }
   setStep(2);
+}
+
+/* ---------- step 1b: valid ID (Google sign-in users) ---------- */
+function renderIdStep() {
+  const cfg = state.config; state.step = 1;
+  $('#main').innerHTML = `
+  <div class="card">
+    <h2>Upload a valid ID</h2>
+    <p class="lead">Hi ${esc(state.me.name.split(' ')[0])}! One last thing before you book: a clear photo of one valid ID.</p>
+    ${errorHtml()}
+    <form id="idForm">
+      <label class="field"><span>Mobile number (GCash)</span><input name="phone" required placeholder="09XX XXX XXXX" autocomplete="tel" inputmode="tel" value="${esc(state.me.phone || '')}"></label>
+      <label class="field"><span>Type of valid ID</span><select name="id_type" required><option value="" disabled selected>Choose your ID</option>${cfg.idTypes.map((t) => `<option>${esc(t)}</option>`).join('')}</select></label>
+      <label class="field"><span>Photo of your valid ID (required)</span><input name="id_photo" type="file" accept="image/*" required></label>
+      <p class="small muted" style="margin:-6px 0 12px">Student ID, driver's license, passport, national ID or any government ID. Your name must match. Seen only by MSpace staff.</p>
+      <button class="btn primary block" type="submit">Continue</button>
+    </form>
+  </div>`;
+  $('#idForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target); const btn = e.target.querySelector('button'); btn.disabled = true; btn.textContent = 'Uploading…';
+    try {
+      await api('/api/me', { method: 'POST', body: JSON.stringify({ phone: fd.get('phone') }) });
+      const r = await api('/api/me/id', { method: 'POST', body: fd });
+      state.me = r.customer; state.phone = r.customer.phone || ''; await afterSignIn();
+    } catch (err) { state.error = err.message; renderIdStep(); }
+  });
 }
 
 /* ---------- step 2: choose pass ---------- */
@@ -216,7 +251,7 @@ function renderPay() {
     const fd = new FormData(e.target); fd.set('method', state.method);
     if (state.offline) {
       const subject = `MSpace ${b.planName} — ${b.name} — ${b.id}`;
-      const body = `Booking ID: ${b.id}\nName: ${b.name}\nMobile: ${b.phone}\nEmail: ${b.email}\nPass: ${b.planName} (₱${b.amount})\nAccess: ${fmtDT(b.start_at)} → ${fmtDT(b.end_at)}\nPaid via: ${state.method === 'gcash' ? 'GCash' : 'InstaPay'}\n\n>>> Please ATTACH your payment screenshot to this email before sending. <<<\n\nI agree to the MSpace policies, house rules and checkout list.`;
+      const body = `Booking ID: ${b.id}\nName: ${b.name}\nMobile: ${b.phone}\nEmail: ${b.email}\nValid ID: ${state.me.id_type || ''}\nPass: ${b.planName} (₱${b.amount})\nAccess: ${fmtDT(b.start_at)} → ${fmtDT(b.end_at)}\nPaid via: ${state.method === 'gcash' ? 'GCash' : 'InstaPay'}\n\n>>> Please ATTACH to this email before sending: (1) your payment screenshot, (2) a photo of your ${state.me.id_type || 'valid ID'}. <<<\n\nI agree to the MSpace policies, house rules and checkout list.`;
       location.href = `mailto:mspacemind@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
       b.payment_method = state.method; b.offline = true; sessionStorage.removeItem('ms_booking'); return setTimeout(() => setStep(5), 400);
     }
@@ -236,7 +271,7 @@ function renderDone() {
     <div class="alert success">✅ Almost done! Your email app opened with your reservation.</div>
     <h2>What happens next</h2>
     <ol class="rules">
-      <li><b>Attach your payment screenshot</b> to that email and press send. <a href="#" id="reopen">Open the email again</a> if it closed.</li>
+      <li><b>Attach your payment screenshot and a photo of your ${esc(state.me.id_type || 'valid ID')}</b> to that email and press send. <a href="#" id="reopen">Open the email again</a> if it closed.</li>
       <li>We verify the payment and email your <b>keybox code</b> to <b>${esc(b.email)}</b>. Check spam if it does not arrive.</li>
       <li>Open the keybox, take the key, unlock, and <b>put the key back inside the keybox</b>.</li>
       <li>Before leaving: aircon off, table clean, doors locked, keys in the keybox.</li>
@@ -291,7 +326,7 @@ async function startOffline(err) {
   const d = new Date(); const p = (n) => String(n).padStart(2, '0');
   state.config = {
     business: m.BUSINESS, hours: m.HOURS, plans: Object.values(m.PLANS), policies: m.POLICIES, houseRules: m.HOUSE_RULES,
-    checklist: m.CHECKOUT_CHECKLIST, paymentMethods: Object.values(m.PAYMENT_METHODS), payment: m.PAYMENT_DEFAULTS,
+    checklist: m.CHECKOUT_CHECKLIST, paymentMethods: Object.values(m.PAYMENT_METHODS), payment: m.PAYMENT_DEFAULTS, idTypes: m.ID_TYPES,
     today: `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`, googleClientId: null,
   };
   try { state.me = JSON.parse(sessionStorage.getItem('ms_offline_me') || 'null'); } catch { state.me = null; }

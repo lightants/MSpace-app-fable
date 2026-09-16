@@ -50,6 +50,7 @@ export const PLANS = {
 
 export const POLICIES = [
   'Pre-registration only. There are no walk-ins. Every pass (Daily, Weekly, Monthly) is self check-in: access is granted only after your payment screenshot is verified and a keybox code is emailed to you.',
+  'A clear photo of one valid ID (student ID, driver\'s license, passport, national ID or other government ID) is required at sign-up. Your name must match the ID.',
   'Passes are personal and non-transferable. Never share your keybox code with anyone.',
   'Daily Pass: access from 6:00 AM to 6:00 PM on the date you choose. Weekly and Monthly Passes: 24/7 access, ending at 6:00 PM on your last day.',
   'Checkout hours are 9:00 AM to 6:00 PM. Complete the checkout checklist before you leave on your last day.',
@@ -76,6 +77,10 @@ export const CHECKOUT_CHECKLIST = [
   { id: 'table', icon: '🧹', text: 'Clean up your table. Throw away food and wrappers to prevent insects.' },
   { id: 'doors', icon: '🔒', text: 'Lock the doors if no other customer is inside.' },
   { id: 'keys',  icon: '🔑', text: 'Put the keys inside the keybox, close it and scramble the dial.' },
+];
+
+export const ID_TYPES = [
+  'Student ID', "Driver's License", 'Passport', 'National ID (PhilSys)', 'UMID / SSS ID', 'PhilHealth ID', 'Postal ID', 'Voter\'s ID', 'PRC ID', 'Company ID', 'Other government ID',
 ];
 
 export const PAYMENT_METHODS = {

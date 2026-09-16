@@ -9,7 +9,7 @@ import {
   allSettings, saveSettings, setting, createBooking, getBooking, getBookingByToken, updateBooking, listBookings,
   listOutbox, getOutboxItem, notificationsFor, stats, listCustomers, updateCustomer, getCustomer,
 } from './src/db.js';
-import { BUSINESS, HOURS, PLANS, POLICIES, HOUSE_RULES, CHECKOUT_CHECKLIST, PAYMENT_METHODS } from './public/js/content.js';
+import { BUSINESS, HOURS, PLANS, POLICIES, HOUSE_RULES, CHECKOUT_CHECKLIST, PAYMENT_METHODS, ID_TYPES } from './public/js/content.js';
 import { computeWindow, todayStr, peso, fmtDateTime } from './src/time.js';
 import { sendTemplate, sendMail, templates, mailEnabled } from './src/mailer.js';
 import {
@@ -72,7 +72,7 @@ app.get('/api/config', (req, res) => {
   const s = allSettings();
   res.json({
     business: BUSINESS, hours: HOURS, plans: Object.values(PLANS), policies: POLICIES, houseRules: HOUSE_RULES,
-    checklist: CHECKOUT_CHECKLIST, paymentMethods: Object.values(PAYMENT_METHODS), today: todayStr(),
+    checklist: CHECKOUT_CHECKLIST, paymentMethods: Object.values(PAYMENT_METHODS), idTypes: ID_TYPES, today: todayStr(),
     payment: {
       gcash: { name: s.gcash_name, number: s.gcash_number, qr: '/payment-qr/gcash' },
       instapay: { name: s.instapay_name, bank: s.instapay_bank, number: s.instapay_number, qr: '/payment-qr/instapay' },
@@ -89,7 +89,7 @@ app.get('/payment-qr/:method', (req, res) => {
 });
 
 // ---------- step 3: customer sign-up / sign-in ----------
-const publicCustomer = (c) => c && ({ id: c.id, email: c.email, name: c.name, phone: c.phone, picture: c.picture, provider: c.provider });
+const publicCustomer = (c) => c && ({ id: c.id, email: c.email, name: c.name, phone: c.phone, picture: c.picture, provider: c.provider, id_type: c.id_type, has_id: !!c.id_path });
 app.get('/api/me', (req, res) => res.json({ customer: publicCustomer(customerFromRequest(req)) }));
 app.post('/api/auth/google', async (req, res) => {
   try {
@@ -113,6 +113,15 @@ app.post('/api/me', (req, res) => {
   const name = String(req.body?.name || c.name).trim().slice(0, 80);
   res.json({ customer: publicCustomer(updateCustomer(c.id, { phone, name: name || c.name })) });
 });
+// Valid ID upload (required once per customer before booking)
+app.post('/api/me/id', upload.single('id_photo'), (req, res) => {
+  const c = customerFromRequest(req);
+  if (!c) return bad(res, 'Please sign in first.', 401);
+  const idType = String(req.body?.id_type || '').trim();
+  if (!ID_TYPES.includes(idType)) return bad(res, 'Please choose the type of ID you are uploading.');
+  if (!req.file) return bad(res, 'Please attach a clear photo of your valid ID (PNG or JPG).');
+  res.json({ customer: publicCustomer(updateCustomer(c.id, { id_type: idType, id_path: req.file.filename })) });
+});
 app.get('/api/my-bookings', (req, res) => {
   const c = customerFromRequest(req);
   if (!c) return bad(res, 'Please sign in first.', 401);
@@ -124,6 +133,7 @@ app.post('/api/bookings', (req, res) => {
   const c = customerFromRequest(req);
   if (!c) return bad(res, 'Please sign in first.', 401);
   const { plan, startDate, phone, agreed } = req.body || {};
+  if (!c.id_path) return bad(res, 'Please upload a valid ID before booking.');
   if (!agreed) return bad(res, 'Please agree to the policies and house rules.');
   try {
     const { start, end } = computeWindow(plan, startDate);
@@ -190,9 +200,15 @@ app.get('/api/admin/overview', requireAdmin, (req, res) => {
   res.json({ stats: stats(), bookings: listBookings({ status: req.query.status }).map((b) => publicBooking(b, { full: true })), settings: allSettings() });
 });
 app.get('/api/admin/customers', requireAdmin, (req, res) => res.json({ customers: listCustomers() }));
+app.get('/api/admin/customers/:id/id-photo', requireAdmin, (req, res) => {
+  const c = getCustomer(req.params.id);
+  const full = c?.id_path && path.join(UPLOAD_DIR, path.basename(c.id_path));
+  if (!full || !existsSync(full)) return res.status(404).end();
+  res.sendFile(full);
+});
 app.get('/api/admin/customers.csv', requireAdmin, (req, res) => {
-  const rows = [['id', 'name', 'email', 'phone', 'provider', 'signed_up', 'last_login', 'visits', 'passes', 'spent']];
-  for (const c of listCustomers()) rows.push([c.id, c.name, c.email, c.phone || '', c.provider, new Date(c.created_at).toISOString(), new Date(c.last_login_at).toISOString(), c.visits, c.passes, c.spent]);
+  const rows = [['id', 'name', 'email', 'phone', 'id_type', 'provider', 'signed_up', 'last_login', 'visits', 'passes', 'spent']];
+  for (const c of listCustomers()) rows.push([c.id, c.name, c.email, c.phone || '', c.id_type || '', c.provider, new Date(c.created_at).toISOString(), new Date(c.last_login_at).toISOString(), c.visits, c.passes, c.spent]);
   res.setHeader('Content-Type', 'text/csv'); res.setHeader('Content-Disposition', 'attachment; filename="mspace-customers.csv"');
   res.send(rows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n'));
 });

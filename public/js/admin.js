@@ -101,8 +101,8 @@ function confirmModal(id) {
 async function renderCustomers() {
   const { customers } = await api('/api/admin/customers');
   shell(`<div class="card tablewrap"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:10px;flex-wrap:wrap"><h2>Customers (${customers.length})</h2><a class="btn small" href="${API}/api/admin/customers.csv">⬇ Export CSV</a></div>
-    ${customers.length ? `<table class="data"><thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Sign-up</th><th>Last seen</th><th>Passes</th><th>Spent</th></tr></thead><tbody>
-    ${customers.map((c) => `<tr><td>${c.picture ? `<img src="${esc(c.picture)}" style="width:22px;height:22px;border-radius:50%;vertical-align:middle;margin-right:6px">` : ''}${esc(c.name)}</td><td>${esc(c.email)}</td><td>${esc(c.phone || '—')}</td><td class="sub">${esc(c.provider)} · ${fmtDT(c.created_at)}</td><td class="sub">${fmtDT(c.last_login_at)} · ${c.visits} visits</td><td>${c.passes}</td><td>${peso(c.spent)}</td></tr>`).join('')}
+    ${customers.length ? `<table class="data"><thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Valid ID</th><th>Sign-up</th><th>Last seen</th><th>Passes</th><th>Spent</th></tr></thead><tbody>
+    ${customers.map((c) => `<tr><td>${c.picture ? `<img src="${esc(c.picture)}" style="width:22px;height:22px;border-radius:50%;vertical-align:middle;margin-right:6px">` : ''}${esc(c.name)}</td><td>${esc(c.email)}</td><td>${esc(c.phone || '—')}</td><td>${c.id_path ? `${esc(c.id_type)}<div><a class="btn small" href="${API}/api/admin/customers/${c.id}/id-photo" target="_blank">🪪 View ID</a></div>` : '<span class="sub">not uploaded</span>'}</td><td class="sub">${esc(c.provider)} · ${fmtDT(c.created_at)}</td><td class="sub">${fmtDT(c.last_login_at)} · ${c.visits} visits</td><td>${c.passes}</td><td>${peso(c.spent)}</td></tr>`).join('')}
     </tbody></table>` : '<p class="muted center">No customers yet. They appear here as soon as they sign up with Gmail.</p>'}</div>`);
 }
 

@@ -69,6 +69,8 @@ CREATE TABLE IF NOT EXISTS customers (
 CREATE INDEX IF NOT EXISTS idx_bookings_status ON bookings(status);
 `);
 try { db.exec('ALTER TABLE bookings ADD COLUMN customer_id TEXT'); } catch { /* column exists */ }
+try { db.exec('ALTER TABLE customers ADD COLUMN id_type TEXT'); } catch { /* column exists */ }
+try { db.exec('ALTER TABLE customers ADD COLUMN id_path TEXT'); } catch { /* column exists */ }
 
 
 // ---------- settings ----------
